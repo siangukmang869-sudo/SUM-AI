@@ -109,7 +109,7 @@ initializeAppCheck(app, {
 });
 const auth = getAuth(app);
 const db = getFirestore(app);
-const model = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: "gemini-2.5-flash" });
+const model = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: "gemini-3.8-flash" });
 
 const $ = (id) => document.getElementById(id);
 const START_CREDITS = 10;

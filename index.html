@@ -27,7 +27,7 @@
   p.sub { color: var(--mute); margin: 0 0 20px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
   label { display: block; color: var(--mute); font-size: .9rem; margin: 10px 0 4px; }
-  input, textarea {
+  input, textarea, select {
     width: 100%; background: var(--bg); color: var(--ink);
     border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit;
   }
@@ -73,9 +73,20 @@
       <button id="outBtn" class="ghost" style="width:auto;margin:0;padding:8px 12px">ထွက်မည်</button>
     </div>
     <div class="panel">
-      <label for="idea">ဇာတ်လမ်း ခေါင်းစဉ် သို့မဟုတ် အကြံ</label>
-      <textarea id="idea" placeholder="ဥပမာ - တောထဲမှာ ပျောက်သွားတဲ့ ကလေးတစ်ယောက်"></textarea>
-      <button id="genBtn">ဇာတ်လမ်းရေးမည် (၁ ခရက်ဒစ်)</button>
+      <label for="tool">ကိရိယာ ရွေးပါ</label>
+      <select id="tool"></select>
+      <label for="idea" id="ideaLabel"></label>
+      <textarea id="idea"></textarea>
+      <div id="langBox" class="hidden">
+        <label for="lang">ပြန်မည့် ဘာသာစကား</label>
+        <select id="lang">
+          <option>မြန်မာ</option>
+          <option>English</option>
+          <option>ไทย</option>
+          <option>中文</option>
+        </select>
+      </div>
+      <button id="genBtn">စတင်မည် (၁ ခရက်ဒစ်)</button>
       <p id="msg2" role="alert" style="color:var(--err);font-size:.9rem;min-height:1.4em;margin:8px 0 0"></p>
     </div>
     <div class="panel hidden" id="outPanel"><div id="out"></div></div>
@@ -164,18 +175,65 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-$("genBtn").onclick = async () => {
-  const idea = $("idea").value.trim();
+const TOOLS = {
+  story: {
+    name: "ဇာတ်လမ်းရေးစက်",
+    label: "ဇာတ်လမ်း ခေါင်းစဉ် သို့မဟုတ် အကြံ",
+    hint: "ဥပမာ - တောထဲမှာ ပျောက်သွားတဲ့ ကလေးတစ်ယောက်",
+    prompt: (t) => "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ စာသားသက်သက်သာ ရေးပါ။ Markdown သင်္ကေတ (**, ##, ---, *) မသုံးပါနှင့်။ ခေါင်းစဉ်/အကြံ: " + t
+  },
+  translate: {
+    name: "ဘာသာပြန်",
+    label: "ပြန်ချင်သော စာသား",
+    hint: "စာသား ထည့်ပါ",
+    lang: true,
+    prompt: (t, l) => "အောက်ပါစာသားကို " + l + " ဘာသာသို့ သဘာဝကျကျ ပြန်ပေးပါ။ ပြန်ထားသော စာသားသာ ပေးပါ၊ ရှင်းလင်းချက် မထည့်ပါနှင့်။ Markdown သင်္ကေတ မသုံးပါနှင့်။\n\n" + t
+  },
+  srt: {
+    name: "SRT ဘာသာပြန်",
+    label: "SRT ဖိုင်ထဲက စာသား (paste လုပ်ပါ)",
+    hint: "1\n00:00:01,000 --> 00:00:03,000\nHello",
+    lang: true,
+    prompt: (t, l) => "အောက်ပါ SRT subtitle ကို " + l + " ဘာသာသို့ ပြန်ပါ။ အချိန်ကုဒ်နှင့် အလိုက်နံပါတ်များကို မပြောင်းဘဲ မူရင်းအတိုင်း ထားပါ။ စာသားကိုသာ ပြန်ပါ။ SRT ပုံစံအတိုင်းသာ ပေးပါ၊ ရှင်းလင်းချက်နှင့် code block မထည့်ပါနှင့်။\n\n" + t
+  },
+  recap: {
+    name: "Recap စာသားရေး",
+    label: "ရုပ်ရှင်/ဗီဒီယို အကျဉ်း သို့မဟုတ် အကြောင်းအရာ",
+    hint: "ဇာတ်လမ်းအကျဉ်းကို ရေးထည့်ပါ",
+    prompt: (t) => "အောက်ပါ အကြောင်းအရာကို အခြေခံပြီး မြန်မာဘာသာဖြင့် Recap ဗီဒီယိုအတွက် အသံဖတ်စာ (narration script) ရေးပေးပါ။ စိတ်ဝင်စားဖွယ်ဖြစ်အောင် စတင်ပြီး ပိုဒ်တိုများဖြင့် ရေးပါ။ စာသားသက်သက်သာ ရေးပါ၊ Markdown သင်္ကေတ မသုံးပါနှင့်။\n\n" + t
+  }
+};
+
+const toolSel = $("tool");
+for (const k in TOOLS) {
+  const o = document.createElement("option");
+  o.value = k; o.textContent = TOOLS[k].name;
+  toolSel.appendChild(o);
+}
+function applyTool() {
+  const t = TOOLS[toolSel.value];
+  $("ideaLabel").textContent = t.label;
+  $("idea").placeholder = t.hint;
+  $("langBox").classList.toggle("hidden", !t.lang);
+  $("genBtn").textContent = t.name + " (၁ ခရက်ဒစ်)";
+  $("outPanel").classList.add("hidden");
   $("msg2").textContent = "";
-  if (!idea) { $("msg2").textContent = "ခေါင်းစဉ် အရင်ရိုက်ပါ။"; return; }
+}
+toolSel.onchange = applyTool;
+applyTool();
+
+$("genBtn").onclick = async () => {
+  const t = TOOLS[toolSel.value];
+  const text = $("idea").value.trim();
+  $("msg2").textContent = "";
+  if (!text) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
   if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
   const btn = $("genBtn");
-  btn.disabled = true; btn.textContent = "ရေးနေသည်...";
+  btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
   try {
-    const res = await model.generateContent(
-      "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ စာသားသက်သက်သာ ရေးပါ။ Markdown သင်္ကေတ (**, ##, ---, *) မသုံးပါနှင့်။ ခေါင်းစဉ်/အကြံ: " + idea
-    );
+    const res = await model.generateContent(t.prompt(text, $("lang").value));
     $("out").textContent = res.response.text()
+      .replace(/```[a-z]*\n?/g, "")
       .replace(/\*\*/g, "")
       .replace(/^#{1,6}\s*/gm, "")
       .replace(/^\s*-{3,}\s*$/gm, "")
@@ -186,7 +244,8 @@ $("genBtn").onclick = async () => {
   } catch (e) {
     $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
   }
-  btn.disabled = false; btn.textContent = "ဇာတ်လမ်းရေးမည် (၁ ခရက်ဒစ်)";
+  btn.disabled = false;
+  btn.textContent = t.name + " (၁ ခရက်ဒစ်)";
 };
 </script>
 </body>

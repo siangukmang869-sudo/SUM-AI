@@ -83,7 +83,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/fireba
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import { getAI, getGenerativeModel, GoogleAIBackend, ResponseModality } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCRzCPLQ-ObY6EXoKxgyKucBKmzqx1LzVg",
@@ -102,12 +102,6 @@ initializeAppCheck(app, {
 const auth = getAuth(app);
 const db = getFirestore(app);
 const model = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: "gemini-3.8-flash" });
-
-const IMAGE_MODEL = "gemini-2.5-flash-image";
-const imageModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), {
-  model: IMAGE_MODEL,
-  generationConfig: { responseModalities: [ResponseModality.TEXT, ResponseModality.IMAGE] }
-});
 
 const $ = (id) => document.getElementById(id);
 const START_CREDITS = 10;
@@ -239,14 +233,20 @@ $("genBtn").onclick = async () => {
   btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
   try {
     if (t.kind === "image") {
-      const r = await imageModel.generateContent("Generate an image: " + text);
-      const part = (r.response.inlineDataParts() || [])[0];
-      if (!part) throw new Error("ပုံ မထွက်လာပါ။ စာသားကို ပြောင်းပြီး ထပ်ကြိုးစားပါ။");
-      const src = "data:" + part.inlineData.mimeType + ";base64," + part.inlineData.data;
+      const pr = await model.generateContent("Rewrite this idea as one detailed English image prompt (max 60 words). Output the English prompt only, no quotes: " + text);
+      const eng = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 500);
+      const src = "https://image.pollinations.ai/prompt/" + encodeURIComponent(eng) +
+        "?width=768&height=768&nologo=true&seed=" + Math.floor(Math.random() * 1e6);
       const img = new Image();
-      img.src = src; img.alt = "AI ပုံ"; img.style.cssText = "width:100%;border-radius:10px";
+      img.alt = "AI ပုံ"; img.style.cssText = "width:100%;border-radius:10px";
+      await new Promise((ok, bad) => {
+        img.onload = ok;
+        img.onerror = () => bad(new Error("ပုံဆာဗာ ချိတ်မရပါ၊ နောက်မှ ထပ်ကြိုးစားပါ။"));
+        setTimeout(() => bad(new Error("ပုံထွက်ဖို့ ကြာလွန်းနေသည်။")), 90000);
+        img.src = src;
+      });
       const a = document.createElement("a");
-      a.href = src; a.download = "sum-ai.png"; a.textContent = "ပုံကို သိမ်းမည်";
+      a.href = src; a.target = "_blank"; a.rel = "noopener"; a.textContent = "ပုံကို သီးသန့်ဖွင့်မည် (ဖိထားပြီး သိမ်းပါ)";
       a.style.cssText = "display:block;margin-top:12px;color:var(--accent)";
       $("out").replaceChildren(img, a);
       $("copyBtn").classList.add("hidden");
@@ -278,4 +278,3 @@ $("copyBtn").onclick = async () => {
 </script>
 </body>
 </html>
-

@@ -32,3 +32,158 @@
     border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit;
   }
   textarea { min-height: 90px; resize: vertical; }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 16px;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; margin-top: 12px;
+  }
+  button.ghost { background: transparent; color: var(--mute); border: 1px solid var(--line); }
+  button:disabled { opacity: .55; cursor: default; }
+  .row { display: flex; gap: 10px; }
+  .row button { margin-top: 12px; }
+  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .credits { font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .email { color: var(--mute); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; }
+  #msg { min-height: 1.4em; margin: 8px 0 0; font-size: .9rem; color: var(--err); }
+  #out { white-space: pre-wrap; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SUM-AI</h1>
+  <p class="sub">ဇာတ်လမ်းရေးစက်</p>
+
+  <section id="authView" class="panel">
+    <label for="email">အီးမေးလ်</label>
+    <input id="email" type="email" autocomplete="email" inputmode="email">
+    <label for="pass">စကားဝှက် (အနည်းဆုံး ၆ လုံး)</label>
+    <input id="pass" type="password" autocomplete="current-password">
+    <div class="row">
+      <button id="loginBtn">ဝင်မည်</button>
+      <button id="regBtn" class="ghost">အကောင့်ဖွင့်မည်</button>
+    </div>
+    <p id="msg" role="alert"></p>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div class="panel bar">
+      <span class="email" id="who"></span>
+      <span class="credits" id="credits">0 ခရက်ဒစ်</span>
+      <button id="outBtn" class="ghost" style="width:auto;margin:0;padding:8px 12px">ထွက်မည်</button>
+    </div>
+    <div class="panel">
+      <label for="idea">ဇာတ်လမ်း ခေါင်းစဉ် သို့မဟုတ် အကြံ</label>
+      <textarea id="idea" placeholder="ဥပမာ - တောထဲမှာ ပျောက်သွားတဲ့ ကလေးတစ်ယောက်"></textarea>
+      <button id="genBtn">ဇာတ်လမ်းရေးမည် (၁ ခရက်ဒစ်)</button>
+      <p id="msg2" role="alert" style="color:var(--err);font-size:.9rem;min-height:1.4em;margin:8px 0 0"></p>
+    </div>
+    <div class="panel hidden" id="outPanel"><div id="out"></div></div>
+  </section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider }
+  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut }
+  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment }
+  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getAI, getGenerativeModel, GoogleAIBackend }
+  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCRzCPLQ-ObY6EXoKxgyKucBKmzqx1LzVg",
+  authDomain: "sum-ai-17ff2.firebaseapp.com",
+  projectId: "sum-ai-17ff2",
+  storageBucket: "sum-ai-17ff2.firebasestorage.app",
+  messagingSenderId: "134994518975",
+  appId: "1:134994518975:web:552f16c5c31b4032f4f70a"
+};
+
+const app = initializeApp(firebaseConfig);
+initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider("6LfefPMtAAAAAFe_w9zliIeEaQhyLaLfwQr50DKA"),
+  isTokenAutoRefreshEnabled: true
+});
+const auth = getAuth(app);
+const db = getFirestore(app);
+const model = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: "gemini-2.5-flash" });
+
+const $ = (id) => document.getElementById(id);
+const START_CREDITS = 10;
+let credits = 0;
+
+function errText(e) {
+  const c = e && e.code || "";
+  if (c.includes("invalid-email")) return "အီးမေးလ် ပုံစံ မှားနေသည်။";
+  if (c.includes("weak-password")) return "စကားဝှက် အနည်းဆုံး ၆ လုံး လိုသည်။";
+  if (c.includes("email-already-in-use")) return "ဤအီးမေးလ်ဖြင့် အကောင့်ရှိပြီးသား၊ ဝင်မည်ကို နှိပ်ပါ။";
+  if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found"))
+    return "အီးမေးလ် သို့မဟုတ် စကားဝှက် မှားနေသည်။";
+  if (c.includes("network")) return "အင်တာနက် ချိတ်ဆက်မှု စစ်ပါ။";
+  return "အမှား: " + (e && e.message ? e.message : e);
+}
+
+$("loginBtn").onclick = async () => {
+  $("msg").textContent = "";
+  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); }
+  catch (e) { $("msg").textContent = errText(e); }
+};
+$("regBtn").onclick = async () => {
+  $("msg").textContent = "";
+  try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); }
+  catch (e) { $("msg").textContent = errText(e); }
+};
+$("outBtn").onclick = () => signOut(auth);
+
+function showCredits() { $("credits").textContent = credits + " ခရက်ဒစ်"; }
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    $("authView").classList.remove("hidden");
+    $("appView").classList.add("hidden");
+    return;
+  }
+  $("authView").classList.add("hidden");
+  $("appView").classList.remove("hidden");
+  $("who").textContent = user.email;
+  try {
+    const ref = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, { email: user.email, credits: START_CREDITS });
+      credits = START_CREDITS;
+    } else {
+      credits = snap.data().credits ?? 0;
+    }
+    showCredits();
+  } catch (e) {
+    $("msg2").textContent = "ခရက်ဒစ် ဖတ်မရပါ: " + e.message;
+  }
+});
+
+$("genBtn").onclick = async () => {
+  const idea = $("idea").value.trim();
+  $("msg2").textContent = "";
+  if (!idea) { $("msg2").textContent = "ခေါင်းစဉ် အရင်ရိုက်ပါ။"; return; }
+  if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
+  const btn = $("genBtn");
+  btn.disabled = true; btn.textContent = "ရေးနေသည်...";
+  try {
+    const res = await model.generateContent(
+      "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ ခေါင်းစဉ်/အကြံ: " + idea
+    );
+    $("out").textContent = res.response.text();
+    $("outPanel").classList.remove("hidden");
+    await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
+    credits -= 1; showCredits();
+  } catch (e) {
+    $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
+  }
+  btn.disabled = false; btn.textContent = "ဇာတ်လမ်းရေးမည် (၁ ခရက်ဒစ်)";
+};
+</script>
+</body>
+</html>

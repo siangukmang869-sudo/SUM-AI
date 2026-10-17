@@ -173,9 +173,13 @@ $("genBtn").onclick = async () => {
   btn.disabled = true; btn.textContent = "ရေးနေသည်...";
   try {
     const res = await model.generateContent(
-      "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ ခေါင်းစဉ်/အကြံ: " + idea
+      "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ စာသားသက်သက်သာ ရေးပါ။ Markdown သင်္ကေတ (**, ##, ---, *) မသုံးပါနှင့်။ ခေါင်းစဉ်/အကြံ: " + idea
     );
-    $("out").textContent = res.response.text();
+    $("out").textContent = res.response.text()
+      .replace(/\*\*/g, "")
+      .replace(/^#{1,6}\s*/gm, "")
+      .replace(/^\s*-{3,}\s*$/gm, "")
+      .replace(/^\s*\*\s+/gm, "");
     $("outPanel").classList.remove("hidden");
     await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
     credits -= 1; showCredits();
@@ -187,3 +191,4 @@ $("genBtn").onclick = async () => {
 </script>
 </body>
 </html>
+

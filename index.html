@@ -6,53 +6,43 @@
 <meta name="theme-color" content="#14122b">
 <title>SUM-AI</title>
 <style>
-  :root {
-    --bg: #14122b;
-    --panel: #1e1b3d;
-    --line: #34305f;
-    --ink: #f3f1ff;
-    --mute: #a9a5d1;
-    --accent: #8f7cff;
-    --accent-ink: #14122b;
-    --err: #ff8a8a;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font-family: system-ui, -apple-system, "Noto Sans Myanmar", "Myanmar Text", sans-serif;
-    line-height: 1.7; min-height: 100vh;
-  }
-  main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
-  h1 { font-size: 1.5rem; margin: 0 0 4px; }
-  p.sub { color: var(--mute); margin: 0 0 20px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
-  label { display: block; color: var(--mute); font-size: .9rem; margin: 10px 0 4px; }
-  input, textarea, select {
-    width: 100%; background: var(--bg); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: inherit;
-  }
-  textarea { min-height: 90px; resize: vertical; }
-  input:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-  button {
-    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 16px;
-    background: var(--accent); color: var(--accent-ink); cursor: pointer; width: 100%; margin-top: 12px;
-  }
-  button.ghost { background: transparent; color: var(--mute); border: 1px solid var(--line); }
-  button:disabled { opacity: .55; cursor: default; }
-  .row { display: flex; gap: 10px; }
-  .row button { margin-top: 12px; }
-  .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .credits { font-weight: 700; color: var(--accent); white-space: nowrap; }
-  .email { color: var(--mute); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; }
-  #msg { min-height: 1.4em; margin: 8px 0 0; font-size: .9rem; color: var(--err); }
-  #out { white-space: pre-wrap; }
-  .hidden { display: none; }
+  :root { --bg:#14122b; --panel:#1e1b3d; --line:#34305f; --ink:#f3f1ff; --mute:#a9a5d1; --accent:#8f7cff; --accent-ink:#14122b; --err:#ff8a8a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); min-height:100vh; line-height:1.7;
+    font-family:system-ui,-apple-system,"Noto Sans Myanmar","Myanmar Text",sans-serif; }
+  main { max-width:560px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:1.5rem; margin:0; }
+  h2 { font-size:1rem; margin:22px 0 10px; }
+  .top { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:16px; }
+  label { display:block; color:var(--mute); font-size:.9rem; margin:10px 0 4px; }
+  input, textarea, select { width:100%; background:var(--bg); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:12px; font:inherit; }
+  textarea { min-height:110px; resize:vertical; }
+  input:focus, textarea:focus, select:focus, button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  button { font:inherit; font-weight:600; border:0; border-radius:10px; padding:12px 16px; background:var(--accent); color:var(--accent-ink); cursor:pointer; width:100%; margin-top:12px; }
+  button.ghost { background:transparent; color:var(--mute); border:1px solid var(--line); }
+  button.small { width:auto; margin:0; padding:8px 12px; }
+  button:disabled { opacity:.55; cursor:default; }
+  .row { display:flex; gap:10px; }
+  .credits { font-weight:700; color:var(--accent); white-space:nowrap; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px 6px; }
+  .tool { background:none; color:var(--ink); padding:0; margin:0; font-weight:500; font-size:.74rem; line-height:1.35; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .dot { width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.6rem; background:color-mix(in srgb, var(--c) 28%, var(--panel)); border:1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+  .tool:active .dot { transform:scale(.94); }
+  #msg, #msg2 { color:var(--err); font-size:.9rem; min-height:1.4em; margin:8px 0 0; }
+  #out { white-space:pre-wrap; }
+  .hidden { display:none; }
 </style>
 </head>
 <body>
 <main>
-  <h1>SUM-AI</h1>
-  <p class="sub">ဇာတ်လမ်းရေးစက်</p>
+  <div class="top">
+    <h1>SUM-AI</h1>
+    <div id="bar" class="row hidden" style="align-items:center">
+      <span class="credits" id="credits">0 ခရက်ဒစ်</span>
+      <button id="outBtn" class="ghost small">ထွက်မည်</button>
+    </div>
+  </div>
 
   <section id="authView" class="panel">
     <label for="email">အီးမေးလ်</label>
@@ -66,43 +56,34 @@
     <p id="msg" role="alert"></p>
   </section>
 
-  <section id="appView" class="hidden">
-    <div class="panel bar">
-      <span class="email" id="who"></span>
-      <span class="credits" id="credits">0 ခရက်ဒစ်</span>
-      <button id="outBtn" class="ghost" style="width:auto;margin:0;padding:8px 12px">ထွက်မည်</button>
-    </div>
+  <section id="homeView" class="hidden"></section>
+
+  <section id="toolView" class="hidden">
+    <button id="backBtn" class="ghost small" style="margin-bottom:12px">‹ နောက်သို့</button>
     <div class="panel">
-      <label for="tool">ကိရိယာ ရွေးပါ</label>
-      <select id="tool"></select>
+      <h2 id="toolTitle" style="margin-top:0"></h2>
       <label for="idea" id="ideaLabel"></label>
-      <textarea id="idea"></textarea>
+      <textarea id="idea" placeholder="ဒီမှာ ရေးထည့်ပါ"></textarea>
       <div id="langBox" class="hidden">
         <label for="lang">ပြန်မည့် ဘာသာစကား</label>
-        <select id="lang">
-          <option>မြန်မာ</option>
-          <option>English</option>
-          <option>ไทย</option>
-          <option>中文</option>
-        </select>
+        <select id="lang"><option>Burmese</option><option>English</option><option>Thai</option><option>Chinese</option></select>
       </div>
       <button id="genBtn">စတင်မည် (၁ ခရက်ဒစ်)</button>
-      <p id="msg2" role="alert" style="color:var(--err);font-size:.9rem;min-height:1.4em;margin:8px 0 0"></p>
+      <p id="msg2" role="alert"></p>
     </div>
-    <div class="panel hidden" id="outPanel"><div id="out"></div></div>
+    <div class="panel hidden" id="outPanel">
+      <div id="out"></div>
+      <button id="copyBtn" class="ghost">ကူးယူမည်</button>
+    </div>
   </section>
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider }
-  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut }
-  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, increment }
-  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import { getAI, getGenerativeModel, GoogleAIBackend }
-  from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCRzCPLQ-ObY6EXoKxgyKucBKmzqx1LzVg",
@@ -126,27 +107,89 @@ const $ = (id) => document.getElementById(id);
 const START_CREDITS = 10;
 let credits = 0;
 
+// [id, icon, label, input label, English prompt ({t}=text, {l}=language), lang?]
+const PLAIN = " Write in Burmese (Myanmar language) unless the task says otherwise. Plain text only: never use Markdown symbols such as **, ##, ---, or asterisk bullets.";
+const CATS = [
+  { n: "ဗီဒီယိုအတွက်", c: "#8f7cff", t: [
+    ["recap","🎬","Recap စာသား","ရုပ်ရှင်/ဗီဒီယို အကျဉ်း","Write a narration script for a recap video from this summary. Start with a hook and use short paragraphs: {t}"],
+    ["vscript","🎥","ဗီဒီယို Script","ဗီဒီယို အကြောင်းအရာ","Write a short-form video script (hook, main points, call to action) about: {t}"],
+    ["ytitle","🔥","YouTube ခေါင်းစဉ်","ဗီဒီယို အကြောင်းအရာ","Give 10 catchy YouTube titles for a video about: {t}"],
+    ["caption","📝","Caption ရေး","ပို့စ် အကြောင်းအရာ","Write 3 engaging social media captions for: {t}"],
+    ["hashtag","#️⃣","Hashtag","ပို့စ် အကြောင်းအရာ","Suggest 15 relevant hashtags for: {t}"],
+    ["vprompt","🎞️","AI ဗီဒီယို Prompt","ဗီဒီယို အကြံ","Write a detailed prompt in English for an AI video generator based on this idea. Output the English prompt only: {t}"],
+    ["thumb","🖌️","Thumbnail အကြံ","ဗီဒီယို အကြောင်းအရာ","Suggest 5 thumbnail ideas, each with a short bold text overlay, for a video about: {t}"]
+  ]},
+  { n: "ဖန်တီးရေး", c: "#ff7ab6", t: [
+    ["story","📖","ဇာတ်လမ်း","ခေါင်းစဉ် သို့မဟုတ် အကြံ","Write a short story with a beginning, middle and end about: {t}"],
+    ["poem","🪶","ကဗျာ","ကဗျာ အကြောင်းအရာ","Write a poem about: {t}"],
+    ["joke","😄","ဟာသ","ဟာသ အကြောင်းအရာ","Write a funny short joke or humorous tale about: {t}"],
+    ["names","🏷️","နာမည်ပေး","ဘာအတွက် နာမည်လဲ","Suggest 15 creative names (brand, page or channel) for: {t}"],
+    ["iprompt","🖼️","AI ပုံ Prompt","ပုံ အကြံ","Write a detailed prompt in English for an AI image generator based on this idea. Output the English prompt only: {t}"]
+  ]},
+  { n: "ကြော်ငြာ", c: "#ffb347", t: [
+    ["ad","📣","ကြော်ငြာစာ","ရောင်းမည့် ပစ္စည်း/ဝန်ဆောင်မှု","Write a persuasive Facebook ad post with an attention-grabbing opening and a call to action for: {t}"],
+    ["product","🛍️","ထုတ်ကုန် ဖော်ပြချက်","ထုတ်ကုန် အချက်အလက်","Write a product description highlighting key benefits for: {t}"],
+    ["invite","✉️","ဖိတ်စာ/နှုတ်ဆက်","ဘာအခါအတွက်လဲ","Write a warm, polite message or invitation for this occasion: {t}"]
+  ]},
+  { n: "ဘာသာစကား", c: "#4ec9b0", t: [
+    ["translate","🌐","ဘာသာပြန်","ပြန်ချင်သော စာသား","Translate the following text into {l}. Return only the translation: {t}", true],
+    ["srt","💬","SRT ဘာသာပြန်","SRT စာသား (paste လုပ်ပါ)","Translate this SRT subtitle into {l}. Keep every number and timestamp line exactly unchanged and translate only the text lines. Return valid SRT only, no explanation: {t}", true],
+    ["fix","✅","စာပြင်","ပြင်ချင်သော စာသား","Correct the spelling and grammar of this text without changing its meaning. Return only the corrected text in the same language: {t}"],
+    ["sum","📑","အတိုချုပ်","အတိုချုပ်လိုသော စာသား","Summarize this text in a few short sentences: {t}"],
+    ["simple","🧩","ရိုးရှင်းအောင်ပြော","ရိုးရှင်းစေချင်သော စာသား","Rewrite this text in simple, easy-to-understand language: {t}"]
+  ]},
+  { n: "သင်ယူ & လုပ်ငန်း", c: "#5aa9ff", t: [
+    ["explain","🎓","ရှင်းပြပေး","သိချင်သော အကြောင်းအရာ","Explain this topic simply with an everyday example: {t}"],
+    ["quiz","❓","Quiz ထုတ်","ဘာအကြောင်း quiz လဲ","Create 5 multiple-choice quiz questions with answers about: {t}"],
+    ["cover","💼","Cover Letter","အလုပ်နှင့် ကိုယ်ရေးအချက်","Write a professional cover letter for this job and background: {t}"],
+    ["recipe","🍳","ဟင်းချက်နည်း","ဟင်း/အစားအစာ နာမည်","Give a recipe with ingredients and steps for: {t}"],
+    ["trip","✈️","ခရီးစဉ်","ဘယ်သွားမလဲ၊ ဘယ်နှရက်လဲ","Plan a simple travel itinerary for: {t}"]
+  ]}
+];
+const TOOLS = {};
+CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: !!x[5] }; }));
+
+// home grid
+$("homeView").innerHTML = CATS.map((c) =>
+  `<h2>${c.n}</h2><div class="grid">` +
+  c.t.map((x) => `<button class="tool" data-id="${x[0]}" style="--c:${c.c}"><span class="dot">${x[1]}</span>${x[2]}</button>`).join("") +
+  `</div>`).join("");
+$("homeView").onclick = (e) => {
+  const b = e.target.closest(".tool");
+  if (b) openTool(b.dataset.id);
+};
+
+let current = null;
+function openTool(id) {
+  current = id;
+  const t = TOOLS[id];
+  $("toolTitle").textContent = t.icon + " " + t.name;
+  $("ideaLabel").textContent = t.label;
+  $("idea").value = "";
+  $("langBox").classList.toggle("hidden", !t.lang);
+  $("genBtn").textContent = "စတင်မည် (၁ ခရက်ဒစ်)";
+  $("outPanel").classList.add("hidden");
+  $("msg2").textContent = "";
+  $("homeView").classList.add("hidden");
+  $("toolView").classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+$("backBtn").onclick = () => {
+  $("toolView").classList.add("hidden");
+  $("homeView").classList.remove("hidden");
+};
+
 function errText(e) {
-  const c = e && e.code || "";
+  const c = (e && e.code) || "";
   if (c.includes("invalid-email")) return "အီးမေးလ် ပုံစံ မှားနေသည်။";
   if (c.includes("weak-password")) return "စကားဝှက် အနည်းဆုံး ၆ လုံး လိုသည်။";
   if (c.includes("email-already-in-use")) return "ဤအီးမေးလ်ဖြင့် အကောင့်ရှိပြီးသား၊ ဝင်မည်ကို နှိပ်ပါ။";
-  if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found"))
-    return "အီးမေးလ် သို့မဟုတ် စကားဝှက် မှားနေသည်။";
+  if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found")) return "အီးမေးလ် သို့မဟုတ် စကားဝှက် မှားနေသည်။";
   if (c.includes("network")) return "အင်တာနက် ချိတ်ဆက်မှု စစ်ပါ။";
   return "အမှား: " + (e && e.message ? e.message : e);
 }
-
-$("loginBtn").onclick = async () => {
-  $("msg").textContent = "";
-  try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); }
-  catch (e) { $("msg").textContent = errText(e); }
-};
-$("regBtn").onclick = async () => {
-  $("msg").textContent = "";
-  try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); }
-  catch (e) { $("msg").textContent = errText(e); }
-};
+$("loginBtn").onclick = async () => { $("msg").textContent = ""; try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
+$("regBtn").onclick = async () => { $("msg").textContent = ""; try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
 $("outBtn").onclick = () => signOut(auth);
 
 function showCredits() { $("credits").textContent = credits + " ခရက်ဒစ်"; }
@@ -154,12 +197,14 @@ function showCredits() { $("credits").textContent = credits + " ခရက်ဒ�
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     $("authView").classList.remove("hidden");
-    $("appView").classList.add("hidden");
+    $("bar").classList.add("hidden");
+    $("homeView").classList.add("hidden");
+    $("toolView").classList.add("hidden");
     return;
   }
   $("authView").classList.add("hidden");
-  $("appView").classList.remove("hidden");
-  $("who").textContent = user.email;
+  $("bar").classList.remove("hidden");
+  $("homeView").classList.remove("hidden");
   try {
     const ref = doc(db, "users", user.uid);
     const snap = await getDoc(ref);
@@ -171,59 +216,12 @@ onAuthStateChanged(auth, async (user) => {
     }
     showCredits();
   } catch (e) {
-    $("msg2").textContent = "ခရက်ဒစ် ဖတ်မရပါ: " + e.message;
+    $("credits").textContent = "ခရက်ဒစ် ဖတ်မရပါ";
   }
 });
 
-const TOOLS = {
-  story: {
-    name: "ဇာတ်လမ်းရေးစက်",
-    label: "ဇာတ်လမ်း ခေါင်းစဉ် သို့မဟုတ် အကြံ",
-    hint: "ဥပမာ - တောထဲမှာ ပျောက်သွားတဲ့ ကလေးတစ်ယောက်",
-    prompt: (t) => "မြန်မာဘာသာဖြင့် ဇာတ်လမ်းတိုတစ်ပုဒ် ရေးပေးပါ။ အစ၊ အလယ်၊ အဆုံး ပါရမည်။ စာသားသက်သက်သာ ရေးပါ။ Markdown သင်္ကေတ (**, ##, ---, *) မသုံးပါနှင့်။ ခေါင်းစဉ်/အကြံ: " + t
-  },
-  translate: {
-    name: "ဘာသာပြန်",
-    label: "ပြန်ချင်သော စာသား",
-    hint: "စာသား ထည့်ပါ",
-    lang: true,
-    prompt: (t, l) => "အောက်ပါစာသားကို " + l + " ဘာသာသို့ သဘာဝကျကျ ပြန်ပေးပါ။ ပြန်ထားသော စာသားသာ ပေးပါ၊ ရှင်းလင်းချက် မထည့်ပါနှင့်။ Markdown သင်္ကေတ မသုံးပါနှင့်။\n\n" + t
-  },
-  srt: {
-    name: "SRT ဘာသာပြန်",
-    label: "SRT ဖိုင်ထဲက စာသား (paste လုပ်ပါ)",
-    hint: "1\n00:00:01,000 --> 00:00:03,000\nHello",
-    lang: true,
-    prompt: (t, l) => "အောက်ပါ SRT subtitle ကို " + l + " ဘာသာသို့ ပြန်ပါ။ အချိန်ကုဒ်နှင့် အလိုက်နံပါတ်များကို မပြောင်းဘဲ မူရင်းအတိုင်း ထားပါ။ စာသားကိုသာ ပြန်ပါ။ SRT ပုံစံအတိုင်းသာ ပေးပါ၊ ရှင်းလင်းချက်နှင့် code block မထည့်ပါနှင့်။\n\n" + t
-  },
-  recap: {
-    name: "Recap စာသားရေး",
-    label: "ရုပ်ရှင်/ဗီဒီယို အကျဉ်း သို့မဟုတ် အကြောင်းအရာ",
-    hint: "ဇာတ်လမ်းအကျဉ်းကို ရေးထည့်ပါ",
-    prompt: (t) => "အောက်ပါ အကြောင်းအရာကို အခြေခံပြီး မြန်မာဘာသာဖြင့် Recap ဗီဒီယိုအတွက် အသံဖတ်စာ (narration script) ရေးပေးပါ။ စိတ်ဝင်စားဖွယ်ဖြစ်အောင် စတင်ပြီး ပိုဒ်တိုများဖြင့် ရေးပါ။ စာသားသက်သက်သာ ရေးပါ၊ Markdown သင်္ကေတ မသုံးပါနှင့်။\n\n" + t
-  }
-};
-
-const toolSel = $("tool");
-for (const k in TOOLS) {
-  const o = document.createElement("option");
-  o.value = k; o.textContent = TOOLS[k].name;
-  toolSel.appendChild(o);
-}
-function applyTool() {
-  const t = TOOLS[toolSel.value];
-  $("ideaLabel").textContent = t.label;
-  $("idea").placeholder = t.hint;
-  $("langBox").classList.toggle("hidden", !t.lang);
-  $("genBtn").textContent = t.name + " (၁ ခရက်ဒစ်)";
-  $("outPanel").classList.add("hidden");
-  $("msg2").textContent = "";
-}
-toolSel.onchange = applyTool;
-applyTool();
-
 $("genBtn").onclick = async () => {
-  const t = TOOLS[toolSel.value];
+  const t = TOOLS[current];
   const text = $("idea").value.trim();
   $("msg2").textContent = "";
   if (!text) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
@@ -231,7 +229,8 @@ $("genBtn").onclick = async () => {
   const btn = $("genBtn");
   btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
   try {
-    const res = await model.generateContent(t.prompt(text, $("lang").value));
+    const p = t.prompt.replace("{l}", $("lang").value).replace("{t}", text) + PLAIN;
+    const res = await model.generateContent(p);
     $("out").textContent = res.response.text()
       .replace(/```[a-z]*\n?/g, "")
       .replace(/\*\*/g, "")
@@ -244,10 +243,14 @@ $("genBtn").onclick = async () => {
   } catch (e) {
     $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
   }
-  btn.disabled = false;
-  btn.textContent = t.name + " (၁ ခရက်ဒစ်)";
+  btn.disabled = false; btn.textContent = "စတင်မည် (၁ ခရက်ဒစ်)";
+};
+
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText($("out").textContent); $("copyBtn").textContent = "ကူးပြီးပါပြီ ✓"; }
+  catch { $("copyBtn").textContent = "ကူးမရပါ၊ စာကို ဖိထားပြီး ကူးပါ"; }
+  setTimeout(() => { $("copyBtn").textContent = "ကူးယူမည်"; }, 2000);
 };
 </script>
 </body>
 </html>
-

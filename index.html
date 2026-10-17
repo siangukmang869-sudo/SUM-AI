@@ -83,7 +83,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/fireba
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
-import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
+import { getAI, getGenerativeModel, GoogleAIBackend, ResponseModality } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCRzCPLQ-ObY6EXoKxgyKucBKmzqx1LzVg",
@@ -103,6 +103,12 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const model = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), { model: "gemini-3.8-flash" });
 
+const IMAGE_MODEL = "gemini-2.5-flash-image";
+const imageModel = getGenerativeModel(getAI(app, { backend: new GoogleAIBackend() }), {
+  model: IMAGE_MODEL,
+  generationConfig: { responseModalities: [ResponseModality.TEXT, ResponseModality.IMAGE] }
+});
+
 const $ = (id) => document.getElementById(id);
 const START_CREDITS = 10;
 let credits = 0;
@@ -110,6 +116,9 @@ let credits = 0;
 // [id, icon, label, input label, English prompt ({t}=text, {l}=language), lang?]
 const PLAIN = " Write in Burmese (Myanmar language) unless the task says otherwise. Plain text only: never use Markdown symbols such as **, ##, ---, or asterisk bullets.";
 const CATS = [
+  { n: "AI ပုံ", c: "#ff5d5d", t: [
+    ["image","🎨","AI ပုံထုတ်","ထုတ်ချင်သော ပုံအကြောင်း (ပုံစံပါ ရေးနိုင်သည်)","", false, "image"]
+  ]},
   { n: "ဗီဒီယိုအတွက်", c: "#8f7cff", t: [
     ["recap","🎬","Recap စာသား","ရုပ်ရှင်/ဗီဒီယို အကျဉ်း","Write a narration script for a recap video from this summary. Start with a hook and use short paragraphs: {t}"],
     ["vscript","🎥","ဗီဒီယို Script","ဗီဒီယို အကြောင်းအရာ","Write a short-form video script (hook, main points, call to action) about: {t}"],
@@ -147,7 +156,7 @@ const CATS = [
   ]}
 ];
 const TOOLS = {};
-CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: !!x[5] }; }));
+CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: !!x[5], kind: x[6] }; }));
 
 // home grid
 $("homeView").innerHTML = CATS.map((c) =>
@@ -229,14 +238,29 @@ $("genBtn").onclick = async () => {
   const btn = $("genBtn");
   btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
   try {
-    const p = t.prompt.replace("{l}", $("lang").value).replace("{t}", text) + PLAIN;
-    const res = await model.generateContent(p);
-    $("out").textContent = res.response.text()
-      .replace(/```[a-z]*\n?/g, "")
-      .replace(/\*\*/g, "")
-      .replace(/^#{1,6}\s*/gm, "")
-      .replace(/^\s*-{3,}\s*$/gm, "")
-      .replace(/^\s*\*\s+/gm, "");
+    if (t.kind === "image") {
+      const r = await imageModel.generateContent("Generate an image: " + text);
+      const part = (r.response.inlineDataParts() || [])[0];
+      if (!part) throw new Error("ပုံ မထွက်လာပါ။ စာသားကို ပြောင်းပြီး ထပ်ကြိုးစားပါ။");
+      const src = "data:" + part.inlineData.mimeType + ";base64," + part.inlineData.data;
+      const img = new Image();
+      img.src = src; img.alt = "AI ပုံ"; img.style.cssText = "width:100%;border-radius:10px";
+      const a = document.createElement("a");
+      a.href = src; a.download = "sum-ai.png"; a.textContent = "ပုံကို သိမ်းမည်";
+      a.style.cssText = "display:block;margin-top:12px;color:var(--accent)";
+      $("out").replaceChildren(img, a);
+      $("copyBtn").classList.add("hidden");
+    } else {
+      const p = t.prompt.replace("{l}", $("lang").value).replace("{t}", text) + PLAIN;
+      const res = await model.generateContent(p);
+      $("out").textContent = res.response.text()
+        .replace(/```[a-z]*\n?/g, "")
+        .replace(/\*\*/g, "")
+        .replace(/^#{1,6}\s*/gm, "")
+        .replace(/^\s*-{3,}\s*$/gm, "")
+        .replace(/^\s*\*\s+/gm, "");
+      $("copyBtn").classList.remove("hidden");
+    }
     $("outPanel").classList.remove("hidden");
     await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
     credits -= 1; showCredits();

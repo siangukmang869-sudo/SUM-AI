@@ -469,14 +469,26 @@ async function makeAiVideo(idea) {
   let photo = null;
   if (file) { status("ဓာတ်ပုံ ပြင်ဆင်နေသည်..."); photo = await prepPhoto(file, 768); }
 
-  status("Prompt ပြင်ဆင်နေသည်...");
-  const ask = photo
-    ? "Look at the image. Write one English prompt (max 50 words) describing how this scene should come alive as a short video: the subject's motion, the camera and the lighting. The user's idea (may be empty): " + idea + ". Output the English prompt only, no quotes."
-    : "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea;
-  const parts = [ask];
-  if (photo) parts.push({ inlineData: { mimeType: "image/jpeg", data: photo.b64 } });
-  const pr = await model.generateContent(parts);
-  const prompt = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 600);
+  // Gemini is only needed to turn Burmese into an English video prompt; skip it (and its free quota) otherwise
+  const hasMy = /[\u1000-\u109F]/.test(idea);
+  let prompt;
+  if (!hasMy) {
+    prompt = (idea || "the scene comes alive with natural, gentle motion").slice(0, 600);
+  } else {
+    status("Prompt ပြင်ဆင်နေသည်...");
+    const seeImg = photo && !useLocal();
+    const ask = seeImg
+      ? "Look at the image. Write one English prompt (max 50 words) describing how this scene should come alive as a short video: the subject's motion, the camera and the lighting. The user's idea (may be empty): " + idea + ". Output the English prompt only, no quotes."
+      : "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea;
+    let raw;
+    if (useLocal()) raw = await localGen(ask);
+    else {
+      const parts = [ask];
+      if (seeImg) parts.push({ inlineData: { mimeType: "image/jpeg", data: photo.b64 } });
+      raw = (await model.generateContent(parts)).response.text();
+    }
+    prompt = raw.replace(/["\n]+/g, " ").trim().slice(0, 600);
+  }
 
   status("AI ဗီဒီယို ဆာဗာနဲ့ ချိတ်ဆက်နေသည်...");
   const { Client, handle_file } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");

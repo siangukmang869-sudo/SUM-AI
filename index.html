@@ -53,6 +53,7 @@
       <button id="loginBtn">ဝင်မည်</button>
       <button id="regBtn" class="ghost">အကောင့်ဖွင့်မည်</button>
     </div>
+    <button id="forgotBtn" class="ghost" style="margin-top:8px">စကားဝှက်မေ့သွားလား</button>
     <p id="msg" role="alert"></p>
   </section>
 
@@ -85,7 +86,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
-import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
 import { getAI, getGenerativeModel, GoogleAIBackend } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-ai.js";
 
@@ -201,12 +202,23 @@ function errText(e) {
   if (c.includes("weak-password")) return "စကားဝှက် အနည်းဆုံး ၆ လုံး လိုသည်။";
   if (c.includes("email-already-in-use")) return "ဤအီးမေးလ်ဖြင့် အကောင့်ရှိပြီးသား၊ ဝင်မည်ကို နှိပ်ပါ။";
   if (c.includes("invalid-credential") || c.includes("wrong-password") || c.includes("user-not-found")) return "အီးမေးလ် သို့မဟုတ် စကားဝှက် မှားနေသည်။";
+  if (c.includes("too-many-requests")) return "အကြိမ်များလွန်းသည်၊ ခဏစောင့်ပြီး ထပ်ကြိုးစားပါ။";
   if (c.includes("network")) return "အင်တာနက် ချိတ်ဆက်မှု စစ်ပါ။";
   return "အမှား: " + (e && e.message ? e.message : e);
 }
-$("loginBtn").onclick = async () => { $("msg").textContent = ""; try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
-$("regBtn").onclick = async () => { $("msg").textContent = ""; try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
+$("loginBtn").onclick = async () => { $("msg").textContent = ""; $("msg").style.color = "var(--err)"; try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
+$("regBtn").onclick = async () => { $("msg").textContent = ""; $("msg").style.color = "var(--err)"; try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
 $("outBtn").onclick = () => signOut(auth);
+$("forgotBtn").onclick = async () => {
+  const email = $("email").value.trim();
+  $("msg").style.color = "var(--err)";
+  if (!email) { $("msg").textContent = "အီးမေးလ် အရင်ထည့်ပါ။"; return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    $("msg").style.color = "var(--mute)";
+    $("msg").textContent = "စကားဝှက်ပြန်သတ်မှတ်ရန် အီးမေးလ် ပို့ပြီးပါပြီ။ Inbox နှင့် Spam ကို စစ်ပါ။";
+  } catch (e) { $("msg").textContent = errText(e); }
+};
 
 function showCredits() { $("credits").textContent = credits + " ခရက်ဒစ်"; }
 
@@ -354,21 +366,4 @@ async function makeAiVideo(idea) {
   const pr = await model.generateContent(
     "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea
   );
-  const prompt = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 600);
-
-  status("AI ဗီဒီယို ဆာဗာနဲ့ ချိတ်ဆက်နေသည်...");
-  const { Client } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");
-  const client = await Client.connect("Lightricks/ltx-video-distilled");
-  const job = client.submit("/text_to_video", {
-    prompt: prompt,
-    mode: "text-to-video",
-    duration_ui: Number($("dur").value),
-    randomize_seed: true
-  });
-
-  let out = null;
-  for await (const msg of job) {
-    if (msg.type === "status") {
-      if (msg.stage === "error") throw new Error(msg.message || "ဗီဒီယိုဆာဗာ အမှား (အခမဲ့ quota ကုန်နေနိုင်သည်)");
-      status(msg.position != null
-        ? "တန်းစီနေသည် (နေရာ " + (msg.position + 1) + ")..
+  const prompt = pr.respons

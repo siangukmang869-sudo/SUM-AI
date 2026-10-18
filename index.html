@@ -113,6 +113,14 @@ const CATS = [
   { n: "AI ပုံ", c: "#ff5d5d", t: [
     ["image","🎨","AI ပုံထုတ်","ထုတ်ချင်သော ပုံအကြောင်း (ပုံစံပါ ရေးနိုင်သည်)","", false, "image"]
   ]},
+  { n: "အသံ", c: "#34d399", t: [
+    ["tts","🔊","အသံဖတ်","ဖတ်စေချင်သော စာသား","", true, "speak"]
+  ]},
+  { n: "Hakha Chin", c: "#f59e0b", t: [
+    ["chintr","🔁","Chin ဘာသာပြန်","ပြန်ချင်သော စာသား (Chin သို့ Chin မှ)","Translate the following text between Hakha Chin (Lai) and {l}. If the text is in Hakha Chin, translate it into {l}. Otherwise translate it into Hakha Chin (Lai) written in standard Latin-script orthography. Return only the translation: {t}", true],
+    ["chin","✍️","Chin ရေးစက်","ဘာအကြောင်း ရေးမလဲ","Write about the following in Hakha Chin (Lai) using standard Latin-script orthography. If you are not sure about a word, prefer a simpler word you are sure of: {t}"],
+    ["chintts","🔊","Chin အသံဖတ်","ဖတ်စေချင်သော Chin စာသား","", false, "speakchin"]
+  ]},
   { n: "ဗီဒီယိုအတွက်", c: "#8f7cff", t: [
     ["recap","🎬","Recap စာသား","ရုပ်ရှင်/ဗီဒီယို အကျဉ်း","Write a narration script for a recap video from this summary. Start with a hook and use short paragraphs: {t}"],
     ["vscript","🎥","ဗီဒီယို Script","ဗီဒီယို အကြောင်းအရာ","Write a short-form video script (hook, main points, call to action) about: {t}"],
@@ -163,6 +171,8 @@ $("homeView").onclick = (e) => {
 };
 
 let current = null;
+const btnLabel = (t) => (t.kind || "").startsWith("speak") ? "ဖတ်မည် (အခမဲ့)" : "စတင်မည် (၁ ခရက်ဒစ်)";
+if ("speechSynthesis" in window) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
 function openTool(id) {
   current = id;
   const t = TOOLS[id];
@@ -170,7 +180,8 @@ function openTool(id) {
   $("ideaLabel").textContent = t.label;
   $("idea").value = "";
   $("langBox").classList.toggle("hidden", !t.lang);
-  $("genBtn").textContent = "စတင်မည် (၁ ခရက်ဒစ်)";
+  $("genBtn").textContent = btnLabel(t);
+  $("langBox").querySelector("label").textContent = (t.kind || "").startsWith("speak") ? "ဖတ်မည့် ဘာသာစကား" : "ပြန်မည့် ဘာသာစကား";
   $("outPanel").classList.add("hidden");
   $("msg2").textContent = "";
   $("homeView").classList.add("hidden");
@@ -226,8 +237,25 @@ onAuthStateChanged(auth, async (user) => {
 $("genBtn").onclick = async () => {
   const t = TOOLS[current];
   const text = $("idea").value.trim();
-  $("msg2").textContent = "";
+  $("msg2").textContent = ""; $("msg2").style.color = "var(--err)";
   if (!text) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
+  if ((t.kind || "").startsWith("speak")) {
+    if (!("speechSynthesis" in window)) { $("msg2").textContent = "ဒီ browser မှာ အသံဖတ်ခြင်း မပါပါ။"; return; }
+    speechSynthesis.cancel();
+    const codes = { Burmese: "my", English: "en", Thai: "th", Chinese: "zh" };
+    const chin = t.kind === "speakchin";
+    const pre = chin ? "en" : codes[$("lang").value];
+    const voice = speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(pre));
+    if (!voice) { $("msg2").textContent = "ဒီဖုန်းမှာ " + (chin ? "English" : $("lang").value) + " အသံ မတွေ့ပါ။ ဖုန်း Settings ထဲက Text-to-speech မှာ ထည့်ရနိုင်သည်။"; return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = voice; u.lang = voice.lang;
+    speechSynthesis.speak(u);
+    $("msg2").style.color = "var(--mute)";
+    $("msg2").textContent = chin
+      ? "ဖတ်နေသည်... Hakha Chin အသံ မရှိသောကြောင့် English အသံနဲ့ ခန့်မှန်းဖတ်တာဖြစ်ပြီး အသံထွက် မမှန်နိုင်ပါ။"
+      : "ဖတ်နေသည်... (အသံ: " + voice.name + ")";
+    return;
+  }
   if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
   const btn = $("genBtn");
   btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
@@ -267,7 +295,7 @@ $("genBtn").onclick = async () => {
   } catch (e) {
     $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
   }
-  btn.disabled = false; btn.textContent = "စတင်မည် (၁ ခရက်ဒစ်)";
+  btn.disabled = false; btn.textContent = btnLabel(t);
 };
 
 $("copyBtn").onclick = async () => {

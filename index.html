@@ -66,7 +66,7 @@
       <textarea id="idea" placeholder="ဒီမှာ ရေးထည့်ပါ"></textarea>
       <div id="langBox" class="hidden">
         <label for="lang">ပြန်မည့် ဘာသာစကား</label>
-        <select id="lang"><option value="Burmese">Burmese (မြန်မာ)</option><option value="Hakha Chin (Lai), written in standard Latin-script orthography">Hakha Chin</option><option value="English">English</option><option value="Thai">Thai</option><option value="Chinese">Chinese</option></select>
+        <select id="lang"><option value="Burmese">Burmese (မြန်မာ)</option><option value="English">English</option><option value="Thai">Thai</option><option value="Chinese">Chinese</option></select>
       </div>
       <button id="genBtn">စတင်မည် (၁ ခရက်ဒစ်)</button>
       <p id="msg2" role="alert"></p>
@@ -238,17 +238,14 @@ $("genBtn").onclick = async () => {
     if (!("speechSynthesis" in window)) { $("msg2").textContent = "ဒီ browser မှာ အသံဖတ်ခြင်း မပါပါ။"; return; }
     speechSynthesis.cancel();
     const codes = { Burmese: "my", English: "en", Thai: "th", Chinese: "zh" };
-    const chin = $("lang").value.startsWith("Hakha");
-    const pre = chin ? "en" : codes[$("lang").value];
+    const pre = codes[$("lang").value];
     const voice = speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(pre));
-    if (!voice) { $("msg2").textContent = "ဒီဖုန်းမှာ " + (chin ? "English" : $("lang").value) + " အသံ မတွေ့ပါ။ ဖုန်း Settings ထဲက Text-to-speech မှာ ထည့်ရနိုင်သည်။"; return; }
+    if (!voice) { $("msg2").textContent = "ဒီဖုန်းမှာ " + $("lang").value + " အသံ မတွေ့ပါ။ ဖုန်း Settings ထဲက Text-to-speech မှာ ထည့်ရနိုင်သည်။"; return; }
     const u = new SpeechSynthesisUtterance(text);
     u.voice = voice; u.lang = voice.lang;
     speechSynthesis.speak(u);
     $("msg2").style.color = "var(--mute)";
-    $("msg2").textContent = chin
-      ? "ဖတ်နေသည်... Hakha Chin အသံ မရှိသောကြောင့် English အသံနဲ့ ခန့်မှန်းဖတ်တာဖြစ်ပြီး အသံထွက် မမှန်နိုင်ပါ။"
-      : "ဖတ်နေသည်... (အသံ: " + voice.name + ")";
+    $("msg2").textContent = "ဖတ်နေသည်... (အသံ: " + voice.name + ")";
     return;
   }
   if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
@@ -301,3 +298,4 @@ $("copyBtn").onclick = async () => {
 </script>
 </body>
 </html>
+

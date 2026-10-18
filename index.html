@@ -49,6 +49,7 @@
     <input id="email" type="email" autocomplete="email" inputmode="email">
     <label for="pass">စကားဝှက် (အနည်းဆုံး ၆ လုံး)</label>
     <input id="pass" type="password" autocomplete="current-password">
+    <label style="display:flex;gap:8px;align-items:center;margin:10px 0 0"><input type="checkbox" id="showPass" style="width:auto"> စကားဝှက် ပြမည်</label>
     <div class="row">
       <button id="loginBtn">ဝင်မည်</button>
       <button id="regBtn" class="ghost">အကောင့်ဖွင့်မည်</button>
@@ -209,6 +210,7 @@ function errText(e) {
 $("loginBtn").onclick = async () => { $("msg").textContent = ""; $("msg").style.color = "var(--err)"; try { await signInWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
 $("regBtn").onclick = async () => { $("msg").textContent = ""; $("msg").style.color = "var(--err)"; try { await createUserWithEmailAndPassword(auth, $("email").value.trim(), $("pass").value); } catch (e) { $("msg").textContent = errText(e); } };
 $("outBtn").onclick = () => signOut(auth);
+$("showPass").onchange = () => { $("pass").type = $("showPass").checked ? "text" : "password"; };
 $("forgotBtn").onclick = async () => {
   const email = $("email").value.trim();
   $("msg").style.color = "var(--err)";
@@ -363,7 +365,4 @@ async function makeVideo(topic) {
 async function makeAiVideo(idea) {
   const status = (m) => { $("msg2").style.color = "var(--mute)"; $("msg2").textContent = m; };
   status("Prompt ပြင်ဆင်နေသည်...");
-  const pr = await model.generateContent(
-    "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea
-  );
-  const prompt = pr.respons
+  const pr = await model

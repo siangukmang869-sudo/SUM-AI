@@ -66,7 +66,7 @@
       <textarea id="idea" placeholder="ဒီမှာ ရေးထည့်ပါ"></textarea>
       <div id="langBox" class="hidden">
         <label for="lang">ပြန်မည့် ဘာသာစကား</label>
-        <select id="lang"><option>Burmese</option><option>English</option><option>Thai</option><option>Chinese</option></select>
+        <select id="lang"><option value="Burmese">Burmese (မြန်မာ)</option><option value="Hakha Chin (Lai), written in standard Latin-script orthography">Hakha Chin</option><option value="English">English</option><option value="Thai">Thai</option><option value="Chinese">Chinese</option></select>
       </div>
       <button id="genBtn">စတင်မည် (၁ ခရက်ဒစ်)</button>
       <p id="msg2" role="alert"></p>
@@ -108,7 +108,7 @@ const START_CREDITS = 10;
 let credits = 0;
 
 // [id, icon, label, input label, English prompt ({t}=text, {l}=language), lang?]
-const PLAIN = " Write in Burmese (Myanmar language) unless the task says otherwise. Plain text only: never use Markdown symbols such as **, ##, ---, or asterisk bullets.";
+const plain = (lang) => " Write the answer in " + lang + " (if the task already fixes the output language, follow the task). Plain text only: never use Markdown symbols such as **, ##, ---, or asterisk bullets.";
 const CATS = [
   { n: "AI ပုံ", c: "#ff5d5d", t: [
     ["image","🎨","AI ပုံထုတ်","ထုတ်ချင်သော ပုံအကြောင်း (ပုံစံပါ ရေးနိုင်သည်)","", false, "image"]
@@ -116,18 +116,13 @@ const CATS = [
   { n: "အသံ", c: "#34d399", t: [
     ["tts","🔊","အသံဖတ်","ဖတ်စေချင်သော စာသား","", true, "speak"]
   ]},
-  { n: "Hakha Chin", c: "#f59e0b", t: [
-    ["chintr","🔁","Chin ဘာသာပြန်","ပြန်ချင်သော စာသား (Chin သို့ Chin မှ)","Translate the following text between Hakha Chin (Lai) and {l}. If the text is in Hakha Chin, translate it into {l}. Otherwise translate it into Hakha Chin (Lai) written in standard Latin-script orthography. Return only the translation: {t}", true],
-    ["chin","✍️","Chin ရေးစက်","ဘာအကြောင်း ရေးမလဲ","Write about the following in Hakha Chin (Lai) using standard Latin-script orthography. If you are not sure about a word, prefer a simpler word you are sure of: {t}"],
-    ["chintts","🔊","Chin အသံဖတ်","ဖတ်စေချင်သော Chin စာသား","", false, "speakchin"]
-  ]},
   { n: "ဗီဒီယိုအတွက်", c: "#8f7cff", t: [
     ["recap","🎬","Recap စာသား","ရုပ်ရှင်/ဗီဒီယို အကျဉ်း","Write a narration script for a recap video from this summary. Start with a hook and use short paragraphs: {t}"],
     ["vscript","🎥","ဗီဒီယို Script","ဗီဒီယို အကြောင်းအရာ","Write a short-form video script (hook, main points, call to action) about: {t}"],
     ["ytitle","🔥","YouTube ခေါင်းစဉ်","ဗီဒီယို အကြောင်းအရာ","Give 10 catchy YouTube titles for a video about: {t}"],
     ["caption","📝","Caption ရေး","ပို့စ် အကြောင်းအရာ","Write 3 engaging social media captions for: {t}"],
     ["hashtag","#️⃣","Hashtag","ပို့စ် အကြောင်းအရာ","Suggest 15 relevant hashtags for: {t}"],
-    ["vprompt","🎞️","AI ဗီဒီယို Prompt","ဗီဒီယို အကြံ","Write a detailed prompt in English for an AI video generator based on this idea. Output the English prompt only: {t}"],
+    ["vprompt","🎞️","AI ဗီဒီယို Prompt","ဗီဒီယို အကြံ","Write a detailed prompt in English for an AI video generator based on this idea. Output the English prompt only: {t}", false],
     ["thumb","🖌️","Thumbnail အကြံ","ဗီဒီယို အကြောင်းအရာ","Suggest 5 thumbnail ideas, each with a short bold text overlay, for a video about: {t}"]
   ]},
   { n: "ဖန်တီးရေး", c: "#ff7ab6", t: [
@@ -135,7 +130,7 @@ const CATS = [
     ["poem","🪶","ကဗျာ","ကဗျာ အကြောင်းအရာ","Write a poem about: {t}"],
     ["joke","😄","ဟာသ","ဟာသ အကြောင်းအရာ","Write a funny short joke or humorous tale about: {t}"],
     ["names","🏷️","နာမည်ပေး","ဘာအတွက် နာမည်လဲ","Suggest 15 creative names (brand, page or channel) for: {t}"],
-    ["iprompt","🖼️","AI ပုံ Prompt","ပုံ အကြံ","Write a detailed prompt in English for an AI image generator based on this idea. Output the English prompt only: {t}"]
+    ["iprompt","🖼️","AI ပုံ Prompt","ပုံ အကြံ","Write a detailed prompt in English for an AI image generator based on this idea. Output the English prompt only: {t}", false]
   ]},
   { n: "ကြော်ငြာ", c: "#ffb347", t: [
     ["ad","📣","ကြော်ငြာစာ","ရောင်းမည့် ပစ္စည်း/ဝန်ဆောင်မှု","Write a persuasive Facebook ad post with an attention-grabbing opening and a call to action for: {t}"],
@@ -145,7 +140,7 @@ const CATS = [
   { n: "ဘာသာစကား", c: "#4ec9b0", t: [
     ["translate","🌐","ဘာသာပြန်","ပြန်ချင်သော စာသား","Translate the following text into {l}. Return only the translation: {t}", true],
     ["srt","💬","SRT ဘာသာပြန်","SRT စာသား (paste လုပ်ပါ)","Translate this SRT subtitle into {l}. Keep every number and timestamp line exactly unchanged and translate only the text lines. Return valid SRT only, no explanation: {t}", true],
-    ["fix","✅","စာပြင်","ပြင်ချင်သော စာသား","Correct the spelling and grammar of this text without changing its meaning. Return only the corrected text in the same language: {t}"],
+    ["fix","✅","စာပြင်","ပြင်ချင်သော စာသား","Correct the spelling and grammar of this text without changing its meaning. Return only the corrected text in the same language: {t}", false],
     ["sum","📑","အတိုချုပ်","အတိုချုပ်လိုသော စာသား","Summarize this text in a few short sentences: {t}"],
     ["simple","🧩","ရိုးရှင်းအောင်ပြော","ရိုးရှင်းစေချင်သော စာသား","Rewrite this text in simple, easy-to-understand language: {t}"]
   ]},
@@ -158,7 +153,7 @@ const CATS = [
   ]}
 ];
 const TOOLS = {};
-CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: !!x[5], kind: x[6] }; }));
+CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: x[5] !== false, kind: x[6] }; }));
 
 // home grid
 $("homeView").innerHTML = CATS.map((c) =>
@@ -181,7 +176,7 @@ function openTool(id) {
   $("idea").value = "";
   $("langBox").classList.toggle("hidden", !t.lang);
   $("genBtn").textContent = btnLabel(t);
-  $("langBox").querySelector("label").textContent = (t.kind || "").startsWith("speak") ? "ဖတ်မည့် ဘာသာစကား" : "ပြန်မည့် ဘာသာစကား";
+  $("langBox").querySelector("label").textContent = (t.kind || "").startsWith("speak") ? "ဖတ်မည့် ဘာသာစကား" : "ရလဒ် ဘာသာစကား";
   $("outPanel").classList.add("hidden");
   $("msg2").textContent = "";
   $("homeView").classList.add("hidden");
@@ -243,7 +238,7 @@ $("genBtn").onclick = async () => {
     if (!("speechSynthesis" in window)) { $("msg2").textContent = "ဒီ browser မှာ အသံဖတ်ခြင်း မပါပါ။"; return; }
     speechSynthesis.cancel();
     const codes = { Burmese: "my", English: "en", Thai: "th", Chinese: "zh" };
-    const chin = t.kind === "speakchin";
+    const chin = $("lang").value.startsWith("Hakha");
     const pre = chin ? "en" : codes[$("lang").value];
     const voice = speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(pre));
     if (!voice) { $("msg2").textContent = "ဒီဖုန်းမှာ " + (chin ? "English" : $("lang").value) + " အသံ မတွေ့ပါ။ ဖုန်း Settings ထဲက Text-to-speech မှာ ထည့်ရနိုင်သည်။"; return; }
@@ -279,7 +274,7 @@ $("genBtn").onclick = async () => {
       $("out").replaceChildren(img, a);
       $("copyBtn").classList.add("hidden");
     } else {
-      const p = t.prompt.replace("{l}", $("lang").value).replace("{t}", text) + PLAIN;
+      const p = t.prompt.replace("{l}", () => $("lang").value).replace("{t}", () => text) + plain($("lang").value);
       const res = await model.generateContent(p);
       $("out").textContent = res.response.text()
         .replace(/```[a-z]*\n?/g, "")

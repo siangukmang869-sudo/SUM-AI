@@ -197,11 +197,60 @@ const CATS = [
 const TOOLS = {};
 CATS.forEach((c) => c.t.forEach((x) => { TOOLS[x[0]] = { icon: x[1], name: x[2], label: x[3], prompt: x[4], lang: x[5] !== false, kind: x[6] }; }));
 
+// ---- own AI server (Ollama / OpenAI-compatible, e.g. Mobile LM Server on this phone) ----
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+const useLocal = () => LS.get("lm_on", "0") === "1";
+const lmUrl = () => (LS.get("lm_url", "http://localhost:11434") || "").trim().replace(/\/+$/, "");
+const lmFail = () => new Error("ကိုယ်ပိုင်ဆာဗာနဲ့ ချိတ်မရပါ။ ဆာဗာ app ပွင့်နေလား၊ model တင်ထားလား၊ browser ခွင့်ပြုချက်/CORS ပိတ်ထားလား စစ်ပါ။");
+async function lmModel() {
+  const base = lmUrl();
+  try {
+    try {
+      const r = await fetch(base + "/v1/models");
+      if (r.ok) { const d = await r.json(); if (d.data && d.data[0]) return d.data[0].id; }
+    } catch (e) { if (!(e instanceof TypeError)) throw e; }
+    const r2 = await fetch(base + "/api/tags");
+    const d2 = await r2.json();
+    if (d2.models && d2.models[0]) return d2.models[0].name || d2.models[0].model;
+  } catch (e) { if (e instanceof TypeError) throw lmFail(); throw e; }
+  throw new Error("ဆာဗာထဲမှာ model မတင်ရသေးပါ။");
+}
+async function localGen(prompt) {
+  const base = lmUrl();
+  const mname = await lmModel();
+  const post = (path, body) => fetch(base + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    let r = await post("/v1/chat/completions", { model: mname, messages: [{ role: "user", content: prompt }], stream: false });
+    if (r.ok) { const d = await r.json(); return d.choices[0].message.content; }
+    r = await post("/api/generate", { model: mname, prompt: prompt, stream: false });
+    if (!r.ok) throw new Error("ကိုယ်ပိုင်ဆာဗာ အမှား (" + r.status + ")");
+    return (await r.json()).response;
+  } catch (e) { if (e instanceof TypeError) throw lmFail(); throw e; }
+}
+const LM_HTML = `<details class="panel" style="margin-top:12px"><summary style="cursor:pointer">⚙ ကိုယ်ပိုင် AI server (စမ်းသပ်)</summary>
+  <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="lmOn" style="width:auto"> စာသား tool တွေမှာ ကိုယ်ပိုင် server သုံးမည် (ခရက်ဒစ် မကုန်)</label>
+  <label for="lmUrl">Server လိပ်စာ</label><input id="lmUrl" placeholder="http://localhost:11434">
+  <button id="lmTest" class="ghost">ချိတ်ဆက်မှု စမ်းမည်</button>
+  <p id="lmMsg" style="font-size:.85rem;color:var(--mute);margin:8px 0 0"></p></details>`;
+
 // home grid
-$("homeView").innerHTML = CATS.map((c) =>
+$("homeView").innerHTML = LM_HTML + CATS.map((c) =>
   `<h2>${c.n}</h2><div class="grid">` +
   c.t.map((x) => `<button class="tool" data-id="${x[0]}" style="--c:${c.c}"><span class="dot">${x[1]}</span>${x[2]}</button>`).join("") +
   `</div>`).join("");
+$("lmOn").checked = useLocal();
+$("lmUrl").value = lmUrl();
+$("lmOn").onchange = () => LS.set("lm_on", $("lmOn").checked ? "1" : "0");
+$("lmUrl").onchange = () => LS.set("lm_url", $("lmUrl").value.trim());
+$("lmTest").onclick = async () => {
+  LS.set("lm_url", $("lmUrl").value.trim());
+  $("lmMsg").textContent = "စမ်းနေသည်...";
+  try { $("lmMsg").textContent = "ချိတ်ဆက်မိပါပြီ။ model: " + await lmModel(); }
+  catch (e) { $("lmMsg").textContent = "ချိတ်မရပါ: " + (e.message || e); }
+};
 $("homeView").onclick = (e) => {
   const b = e.target.closest(".tool");
   if (b) openTool(b.dataset.id);
@@ -507,7 +556,8 @@ $("genBtn").onclick = async () => {
     $("msg2").textContent = "ဖတ်နေသည်... (အသံ: " + voice.name + ")";
     return;
   }
-  if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
+  if (credits < 1 && !(useLocal() && !t.kind)) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
+  const local = useLocal() && !t.kind;
   const btn = $("genBtn");
   btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
   try {
@@ -535,8 +585,8 @@ $("genBtn").onclick = async () => {
       await makeAiVideo(text);
     } else {
       const p = t.prompt.replace("{l}", () => $("lang").value).replace("{t}", () => text) + plain($("lang").value);
-      const res = await model.generateContent(p);
-      $("out").textContent = res.response.text()
+      const raw = local ? await localGen(p) : (await model.generateContent(p)).response.text();
+      $("out").textContent = raw
         .replace(/```[a-z]*\n?/g, "")
         .replace(/\*\*/g, "")
         .replace(/^#{1,6}\s*/gm, "")
@@ -545,8 +595,10 @@ $("genBtn").onclick = async () => {
       $("copyBtn").classList.remove("hidden");
     }
     $("outPanel").classList.remove("hidden");
-    await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
-    credits -= 1; showCredits();
+    if (!local) {
+      await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
+      credits -= 1; showCredits();
+    }
   } catch (e) {
     $("msg2").style.color = "var(--err)"; $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
   }

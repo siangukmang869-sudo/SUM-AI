@@ -44,6 +44,8 @@
     </div>
   </div>
 
+  <p id="boot" style="display:none;color:#ff8a8a;font-size:.85rem;word-break:break-all"></p>
+
   <section id="authView" class="panel">
     <label for="email">အီးမေးလ်</label>
     <input id="email" type="email" autocomplete="email" inputmode="email">
@@ -84,6 +86,34 @@
   </section>
 </main>
 
+<script>
+(function () {
+  var box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:0;right:0;bottom:0;background:#7a1f1f;color:#fff;padding:10px 14px;font:13px system-ui;z-index:99;display:none;white-space:pre-wrap;word-break:break-all";
+  document.addEventListener("DOMContentLoaded", function () { document.body.appendChild(box); });
+  function show(m) { box.style.display = "block"; box.textContent = "Error: " + m; }
+  window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (t && t.tagName === "SCRIPT") show("script failed to load: " + (t.src || "inline module"));
+    else if (!t || t === window) show((e.message || "script error") + (e.filename ? " @" + e.filename.split("/").pop() + ":" + e.lineno : ""));
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) { show("promise: " + ((e.reason && e.reason.message) || e.reason)); });
+})();
+</script>
+<script>
+  window.__boot = false;
+  function showBoot(m) { var b = document.getElementById("boot"); if (b) { b.textContent = m; b.style.display = "block"; } }
+  window.addEventListener("error", function (e) {
+    if (e.target && e.target !== window && e.target.tagName !== "SCRIPT") return;
+    showBoot("Script အမှား: " + (e.message || (e.target && e.target.src) || "unknown"));
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    showBoot("Script အမှား: " + ((e.reason && e.reason.message) || e.reason));
+  });
+  setTimeout(function () {
+    if (!window.__boot) showBoot("Script မစတင်ပါ။ အင်တာနက် စစ်ပြီး စာမျက်နှာကို ပြန်ဖွင့်ပါ။");
+  }, 8000);
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app-check.js";
@@ -365,4 +395,121 @@ async function makeVideo(topic) {
 async function makeAiVideo(idea) {
   const status = (m) => { $("msg2").style.color = "var(--mute)"; $("msg2").textContent = m; };
   status("Prompt ပြင်ဆင်နေသည်...");
-  const pr = await model
+  const pr = await model.generateContent(
+    "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea
+  );
+  const prompt = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 600);
+
+  status("AI ဗီဒီယို ဆာဗာနဲ့ ချိတ်ဆက်နေသည်...");
+  const { Client } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");
+  const client = await Client.connect("Lightricks/ltx-video-distilled");
+  const job = client.submit("/text_to_video", {
+    prompt: prompt,
+    mode: "text-to-video",
+    duration_ui: Number($("dur").value),
+    randomize_seed: true
+  });
+
+  let out = null;
+  for await (const msg of job) {
+    if (msg.type === "status") {
+      if (msg.stage === "error") throw new Error(msg.message || "ဗီဒီယိုဆာဗာ အမှား (အခမဲ့ quota ကုန်နေနိုင်သည်)");
+      status(msg.position != null
+        ? "တန်းစီနေသည် (နေရာ " + (msg.position + 1) + ")... ခဏစောင့်ပါ"
+        : "ဗီဒီယို ထုတ်နေသည်... မိနစ်အနည်းငယ် ကြာနိုင်သည်");
+    } else if (msg.type === "data") {
+      out = msg.data;
+    }
+  }
+  const first = out && out[0];
+  const url = first && ((first.video && first.video.url) || first.url);
+  if (!url) throw new Error("ဗီဒီယို မရပါ၊ ထပ်ကြိုးစားပါ။");
+
+  const v = document.createElement("video");
+  v.src = url; v.controls = true; v.playsInline = true; v.loop = true;
+  v.style.cssText = "width:100%;border-radius:10px";
+  const a = document.createElement("a");
+  a.href = url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "ဗီဒီယို သီးသန့်ဖွင့်မည် (ဖိထားပြီး သိမ်းပါ)";
+  a.style.cssText = "display:block;margin-top:12px;color:var(--accent)";
+  const note = document.createElement("div");
+  note.textContent = "Prompt: " + prompt;
+  note.style.cssText = "margin-top:10px;font-size:.8rem;color:var(--mute)";
+  $("out").replaceChildren(v, a, note);
+  $("copyBtn").classList.add("hidden");
+  $("msg2").textContent = "";
+}
+
+$("genBtn").onclick = async () => {
+  const t = TOOLS[current];
+  const text = $("idea").value.trim();
+  $("msg2").textContent = ""; $("msg2").style.color = "var(--err)";
+  if (!text) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
+  if ((t.kind || "").startsWith("speak")) {
+    if (!("speechSynthesis" in window)) { $("msg2").textContent = "ဒီ browser မှာ အသံဖတ်ခြင်း မပါပါ။"; return; }
+    speechSynthesis.cancel();
+    const codes = { Burmese: "my", English: "en", Thai: "th", Chinese: "zh" };
+    const pre = codes[$("lang").value];
+    const voice = speechSynthesis.getVoices().find((v) => v.lang.replace("_", "-").toLowerCase().startsWith(pre));
+    if (!voice) { $("msg2").textContent = "ဒီဖုန်းမှာ " + $("lang").value + " အသံ မတွေ့ပါ။ ဖုန်း Settings ထဲက Text-to-speech မှာ ထည့်ရနိုင်သည်။"; return; }
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = voice; u.lang = voice.lang;
+    speechSynthesis.speak(u);
+    $("msg2").style.color = "var(--mute)";
+    $("msg2").textContent = "ဖတ်နေသည်... (အသံ: " + voice.name + ")";
+    return;
+  }
+  if (credits < 1) { $("msg2").textContent = "ခရက်ဒစ် မလောက်တော့ပါ။"; return; }
+  const btn = $("genBtn");
+  btn.disabled = true; btn.textContent = "လုပ်ဆောင်နေသည်...";
+  try {
+    if (t.kind === "image") {
+      const pr = await model.generateContent("Rewrite this idea as one detailed English image prompt (max 60 words). Output the English prompt only, no quotes: " + text);
+      const eng = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 500);
+      const src = "https://image.pollinations.ai/prompt/" + encodeURIComponent(eng) +
+        "?width=768&height=768&nologo=true&seed=" + Math.floor(Math.random() * 1e6);
+      const img = new Image();
+      img.alt = "AI ပုံ"; img.style.cssText = "width:100%;border-radius:10px";
+      await new Promise((ok, bad) => {
+        img.onload = ok;
+        img.onerror = () => bad(new Error("ပုံဆာဗာ ချိတ်မရပါ၊ နောက်မှ ထပ်ကြိုးစားပါ။"));
+        setTimeout(() => bad(new Error("ပုံထွက်ဖို့ ကြာလွန်းနေသည်။")), 90000);
+        img.src = src;
+      });
+      const a = document.createElement("a");
+      a.href = src; a.target = "_blank"; a.rel = "noopener"; a.textContent = "ပုံကို သီးသန့်ဖွင့်မည် (ဖိထားပြီး သိမ်းပါ)";
+      a.style.cssText = "display:block;margin-top:12px;color:var(--accent)";
+      $("out").replaceChildren(img, a);
+      $("copyBtn").classList.add("hidden");
+    } else if (t.kind === "video") {
+      await makeVideo(text);
+    } else if (t.kind === "aivideo") {
+      await makeAiVideo(text);
+    } else {
+      const p = t.prompt.replace("{l}", () => $("lang").value).replace("{t}", () => text) + plain($("lang").value);
+      const res = await model.generateContent(p);
+      $("out").textContent = res.response.text()
+        .replace(/```[a-z]*\n?/g, "")
+        .replace(/\*\*/g, "")
+        .replace(/^#{1,6}\s*/gm, "")
+        .replace(/^\s*-{3,}\s*$/gm, "")
+        .replace(/^\s*\*\s+/gm, "");
+      $("copyBtn").classList.remove("hidden");
+    }
+    $("outPanel").classList.remove("hidden");
+    await updateDoc(doc(db, "users", auth.currentUser.uid), { credits: increment(-1) });
+    credits -= 1; showCredits();
+  } catch (e) {
+    $("msg2").style.color = "var(--err)"; $("msg2").textContent = "မအောင်မြင်ပါ: " + (e.message || e);
+  }
+  btn.disabled = false; btn.textContent = btnLabel(t);
+};
+
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText($("out").textContent); $("copyBtn").textContent = "ကူးပြီးပါပြီ ✓"; }
+  catch { $("copyBtn").textContent = "ကူးမရပါ၊ စာကို ဖိထားပြီး ကူးပါ"; }
+  setTimeout(() => { $("copyBtn").textContent = "ကူးယူမည်"; }, 2000);
+};
+window.__boot = true;
+</script>
+</body>
+</html>

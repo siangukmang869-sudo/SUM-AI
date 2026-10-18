@@ -72,6 +72,10 @@
         <label for="lang">ပြန်မည့် ဘာသာစကား</label>
         <select id="lang"><option value="Burmese">Burmese (မြန်မာ)</option><option value="English">English</option><option value="Thai">Thai</option><option value="Chinese">Chinese</option></select>
       </div>
+      <div id="imgBox" class="hidden">
+        <label for="imgFile">ဓာတ်ပုံ (မထည့်လည်းရ၊ ထည့်ရင် ပုံကနေ ဗီဒီယို လုပ်မည်)</label>
+        <input id="imgFile" type="file" accept="image/*">
+      </div>
       <div id="durBox" class="hidden">
         <label for="dur">ဗီဒီယို ကြာချိန်</label>
         <select id="dur"><option value="2">၂ စက္ကန့်</option><option value="3" selected>၃ စက္ကန့်</option><option value="5">၅ စက္ကန့်</option></select>
@@ -214,6 +218,8 @@ function openTool(id) {
   $("idea").value = "";
   $("langBox").classList.toggle("hidden", !t.lang);
   $("durBox").classList.toggle("hidden", t.kind !== "aivideo");
+  $("imgBox").classList.toggle("hidden", t.kind !== "aivideo");
+  $("imgFile").value = "";
   $("genBtn").textContent = btnLabel(t);
   $("langBox").querySelector("label").textContent = (t.kind || "").startsWith("speak") ? "ဖတ်မည့် ဘာသာစကား" : "ရလဒ် ဘာသာစကား";
   $("outPanel").classList.add("hidden");
@@ -392,24 +398,67 @@ async function makeVideo(topic) {
   $("msg2").textContent = "";
 }
 
+async function prepPhoto(file, maxSide) {
+  const bmp = await createImageBitmap(file);
+  const sc = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * sc), h = Math.round(bmp.height * sc);
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  c.getContext("2d").drawImage(bmp, 0, 0, w, h);
+  const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
+  const b64 = await new Promise((res) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(",")[1]);
+    fr.readAsDataURL(blob);
+  });
+  return { blob, b64, w, h };
+}
+
 async function makeAiVideo(idea) {
   const status = (m) => { $("msg2").style.color = "var(--mute)"; $("msg2").textContent = m; };
+  const file = $("imgFile").files[0];
+  let photo = null;
+  if (file) { status("ဓာတ်ပုံ ပြင်ဆင်နေသည်..."); photo = await prepPhoto(file, 768); }
+
   status("Prompt ပြင်ဆင်နေသည်...");
-  const pr = await model.generateContent(
-    "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea
-  );
+  const ask = photo
+    ? "Look at the image. Write one English prompt (max 50 words) describing how this scene should come alive as a short video: the subject's motion, the camera and the lighting. The user's idea (may be empty): " + idea + ". Output the English prompt only, no quotes."
+    : "Rewrite this idea as one vivid English prompt for a short AI video (max 50 words): describe the subject, its motion, the camera and the lighting. Output the English prompt only, no quotes: " + idea;
+  const parts = [ask];
+  if (photo) parts.push({ inlineData: { mimeType: "image/jpeg", data: photo.b64 } });
+  const pr = await model.generateContent(parts);
   const prompt = pr.response.text().replace(/["\n]+/g, " ").trim().slice(0, 600);
 
   status("AI ဗီဒီယို ဆာဗာနဲ့ ချိတ်ဆက်နေသည်...");
-  const { Client } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");
+  const { Client, handle_file } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");
   const client = await Client.connect("Lightricks/ltx-video-distilled");
-  const job = client.submit("/text_to_video", {
-    prompt: prompt,
-    mode: "text-to-video",
-    duration_ui: Number($("dur").value),
-    randomize_seed: true
-  });
+  const dur = Number($("dur").value);
 
+  let endpoint = "/text_to_video";
+  let payload = { prompt: prompt, mode: "text-to-video", duration_ui: dur, randomize_seed: true };
+
+  if (photo) {
+    endpoint = "/image_to_video";
+    const api = await client.view_api();
+    const ep = api.named_endpoints && api.named_endpoints[endpoint];
+    if (!ep) throw new Error("ဓာတ်ပုံမှ ဗီဒီယို endpoint မတွေ့ပါ (" + Object.keys(api.named_endpoints || {}).join(", ") + ")");
+    payload = {};
+    const base = 512 * 704, ar = photo.w / photo.h;
+    const snap = (v) => Math.min(1280, Math.max(256, Math.round(v / 32) * 32));
+    const hh = snap(Math.sqrt(base / ar)), ww = snap(Math.sqrt(base / ar) * ar);
+    for (const p of ep.parameters) {
+      const n = p.parameter_name;
+      if (n === "prompt") payload[n] = prompt;
+      else if (p.component === "Image" || /image/i.test(n)) payload[n] = handle_file(photo.blob);
+      else if (n === "mode") payload[n] = "image-to-video";
+      else if (n === "duration_ui") payload[n] = dur;
+      else if (n === "randomize_seed") payload[n] = true;
+      else if (n === "height_ui") payload[n] = hh;
+      else if (n === "width_ui") payload[n] = ww;
+    }
+  }
+
+  const job = client.submit(endpoint, payload);
   let out = null;
   for await (const msg of job) {
     if (msg.type === "status") {
@@ -443,7 +492,7 @@ $("genBtn").onclick = async () => {
   const t = TOOLS[current];
   const text = $("idea").value.trim();
   $("msg2").textContent = ""; $("msg2").style.color = "var(--err)";
-  if (!text) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
+  if (!text && !(t.kind === "aivideo" && $("imgFile").files[0])) { $("msg2").textContent = "စာသား အရင်ထည့်ပါ။"; return; }
   if ((t.kind || "").startsWith("speak")) {
     if (!("speechSynthesis" in window)) { $("msg2").textContent = "ဒီ browser မှာ အသံဖတ်ခြင်း မပါပါ။"; return; }
     speechSynthesis.cancel();

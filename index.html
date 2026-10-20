@@ -77,8 +77,8 @@
         <input id="imgFile" type="file" accept="image/*">
       </div>
       <div id="durBox" class="hidden">
-        <label for="dur">ဗီဒီယို ကြာချိန်</label>
-        <select id="dur"><option value="2">၂ စက္ကန့်</option><option value="3" selected>၃ စက္ကန့်</option><option value="5">၅ စက္ကန့်</option></select>
+        <label for="dur">ဗီဒီယို ကြာချိန် (၁၀ နဲ့ ၁၅ စက္ကန့်ကို ၅ စက္ကန့်ကလစ်တွေ ဆက်ထုတ်သည်)</label>
+        <select id="dur"><option value="2">၂ စက္ကန့်</option><option value="5" selected>၅ စက္ကန့်</option><option value="10">၁၀ စက္ကန့်</option><option value="15">၁၅ စက္ကန့်</option></select>
       </div>
       <button id="genBtn">စတင်မည် (၁ ခရက်ဒစ်)</button>
       <p id="msg2" role="alert"></p>
@@ -463,6 +463,24 @@ async function prepPhoto(file, maxSide) {
   return { blob, b64, w, h };
 }
 
+async function lastFrame(url) {
+  try {
+    const v = document.createElement("video");
+    v.crossOrigin = "anonymous"; v.muted = true; v.playsInline = true; v.preload = "auto";
+    const meta = new Promise((ok, bad) => { v.onloadedmetadata = ok; v.onerror = () => bad(new Error("load")); });
+    v.src = url;
+    await meta;
+    const seeked = new Promise((ok) => { v.onseeked = ok; });
+    v.currentTime = Math.max(0, v.duration - 0.15);
+    await seeked;
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
+    return blob ? { blob, w: c.width, h: c.height } : null;
+  } catch { return null; }
+}
+
 async function makeAiVideo(idea) {
   const status = (m) => { $("msg2").style.color = "var(--mute)"; $("msg2").textContent = m; };
   const file = $("imgFile").files[0];
@@ -493,58 +511,90 @@ async function makeAiVideo(idea) {
   status("AI ဗီဒီယို ဆာဗာနဲ့ ချိတ်ဆက်နေသည်...");
   const { Client, handle_file } = await import("https://cdn.jsdelivr.net/npm/@gradio/client/dist/index.min.js");
   const client = await Client.connect("Lightricks/ltx-video-distilled");
-  const dur = Number($("dur").value);
 
-  let endpoint = "/text_to_video";
-  let payload = { prompt: prompt, mode: "text-to-video", duration_ui: dur, randomize_seed: true };
+  // the server makes at most ~8 s per call, so longer videos are built from 5 s clips
+  const total = Number($("dur").value);
+  const plan = total <= 5 ? [total] : Array(Math.ceil(total / 5)).fill(5);
 
-  if (photo) {
-    endpoint = "/image_to_video";
+  let i2v = null;
+  const getI2V = async () => {
+    if (i2v) return i2v;
     const api = await client.view_api();
-    const ep = api.named_endpoints && api.named_endpoints[endpoint];
-    if (!ep) throw new Error("ဓာတ်ပုံမှ ဗီဒီယို endpoint မတွေ့ပါ (" + Object.keys(api.named_endpoints || {}).join(", ") + ")");
-    payload = {};
-    const base = 512 * 704, ar = photo.w / photo.h;
-    const snap = (v) => Math.min(1280, Math.max(256, Math.round(v / 32) * 32));
-    const hh = snap(Math.sqrt(base / ar)), ww = snap(Math.sqrt(base / ar) * ar);
-    for (const p of ep.parameters) {
-      const n = p.parameter_name;
-      if (n === "prompt") payload[n] = prompt;
-      else if (p.component === "Image" || /image/i.test(n)) payload[n] = handle_file(photo.blob);
-      else if (n === "mode") payload[n] = "image-to-video";
-      else if (n === "duration_ui") payload[n] = dur;
-      else if (n === "randomize_seed") payload[n] = true;
-      else if (n === "height_ui") payload[n] = hh;
-      else if (n === "width_ui") payload[n] = ww;
+    i2v = api.named_endpoints && api.named_endpoints["/image_to_video"];
+    if (!i2v) throw new Error("ဓာတ်ပုံမှ ဗီဒီယို endpoint မတွေ့ပါ (" + Object.keys(api.named_endpoints || {}).join(", ") + ")");
+    return i2v;
+  };
+
+  const gen = async (secs, img, label) => {
+    let endpoint = "/text_to_video";
+    let payload = { prompt: prompt, mode: "text-to-video", duration_ui: secs, randomize_seed: true };
+    if (img) {
+      endpoint = "/image_to_video";
+      const ep = await getI2V();
+      payload = {};
+      const base = 512 * 704, ar = img.w / img.h;
+      const snap = (v) => Math.min(1280, Math.max(256, Math.round(v / 32) * 32));
+      const hh = snap(Math.sqrt(base / ar)), ww = snap(Math.sqrt(base / ar) * ar);
+      for (const p of ep.parameters) {
+        const n = p.parameter_name;
+        if (n === "prompt") payload[n] = prompt;
+        else if (p.component === "Image" || /image/i.test(n)) payload[n] = handle_file(img.blob);
+        else if (n === "mode") payload[n] = "image-to-video";
+        else if (n === "duration_ui") payload[n] = secs;
+        else if (n === "randomize_seed") payload[n] = true;
+        else if (n === "height_ui") payload[n] = hh;
+        else if (n === "width_ui") payload[n] = ww;
+      }
+    }
+    const job = client.submit(endpoint, payload);
+    let out = null;
+    for await (const msg of job) {
+      if (msg.type === "status") {
+        if (msg.stage === "error") throw new Error(msg.message || "ဗီဒီယိုဆာဗာ အမှား (အခမဲ့ quota ကုန်နေနိုင်သည်)");
+        status(label + (msg.position != null
+          ? "တန်းစီနေသည် (နေရာ " + (msg.position + 1) + ")... ခဏစောင့်ပါ"
+          : "ဗီဒီယို ထုတ်နေသည်... မိနစ်အနည်းငယ် ကြာနိုင်သည်"));
+      } else if (msg.type === "data") {
+        out = msg.data;
+      }
+    }
+    const first = out && out[0];
+    const url = first && ((first.video && first.video.url) || first.url);
+    if (!url) throw new Error("ဗီဒီယို မရပါ၊ ထပ်ကြိုးစားပါ။");
+    return url;
+  };
+
+  const urls = [];
+  let img = photo;
+  let chainBroken = false;
+  for (let i = 0; i < plan.length; i++) {
+    const label = plan.length > 1 ? "ကလစ် " + (i + 1) + "/" + plan.length + " · " : "";
+    urls.push(await gen(plan[i], img, label));
+    if (i < plan.length - 1) {
+      status("ကလစ် " + (i + 1) + " ၏ နောက်ဆုံးပုံကို ယူနေသည်...");
+      const f = await lastFrame(urls[i]);
+      if (f) img = f; else chainBroken = true;
     }
   }
 
-  const job = client.submit(endpoint, payload);
-  let out = null;
-  for await (const msg of job) {
-    if (msg.type === "status") {
-      if (msg.stage === "error") throw new Error(msg.message || "ဗီဒီယိုဆာဗာ အမှား (အခမဲ့ quota ကုန်နေနိုင်သည်)");
-      status(msg.position != null
-        ? "တန်းစီနေသည် (နေရာ " + (msg.position + 1) + ")... ခဏစောင့်ပါ"
-        : "ဗီဒီယို ထုတ်နေသည်... မိနစ်အနည်းငယ် ကြာနိုင်သည်");
-    } else if (msg.type === "data") {
-      out = msg.data;
-    }
-  }
-  const first = out && out[0];
-  const url = first && ((first.video && first.video.url) || first.url);
-  if (!url) throw new Error("ဗီဒီယို မရပါ၊ ထပ်ကြိုးစားပါ။");
-
-  const v = document.createElement("video");
-  v.src = url; v.controls = true; v.playsInline = true; v.loop = true;
-  v.style.cssText = "width:100%;border-radius:10px";
-  const a = document.createElement("a");
-  a.href = url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "ဗီဒီယို သီးသန့်ဖွင့်မည် (ဖိထားပြီး သိမ်းပါ)";
-  a.style.cssText = "display:block;margin-top:12px;color:var(--accent)";
+  const nodes = [];
+  urls.forEach((url, i) => {
+    const v = document.createElement("video");
+    v.src = url; v.controls = true; v.playsInline = true; v.loop = true;
+    v.style.cssText = "width:100%;border-radius:10px;margin-top:" + (i ? "14px" : "0");
+    const a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = (urls.length > 1 ? "ကလစ် " + (i + 1) + " " : "") + "သီးသန့်ဖွင့်မည် (ဖိထားပြီး သိမ်းပါ)";
+    a.style.cssText = "display:block;margin-top:10px;color:var(--accent)";
+    nodes.push(v, a);
+  });
   const note = document.createElement("div");
-  note.textContent = "Prompt: " + prompt;
+  note.textContent = (urls.length > 1
+    ? "ကလစ် " + urls.length + " ခု (တစ်ခုချင်း ၅ စက္ကန့်)၊ ပေါင်းချင်ရင် ဗီဒီယိုတည်းဖြတ် app မှာ ဆက်ပါ။ " + (chainBroken ? "ကလစ်တွေ အဆက်မမိနိုင်ပါ။ " : "")
+    : "") + "Prompt: " + prompt;
   note.style.cssText = "margin-top:10px;font-size:.8rem;color:var(--mute)";
-  $("out").replaceChildren(v, a, note);
+  nodes.push(note);
+  $("out").replaceChildren(...nodes);
   $("copyBtn").classList.add("hidden");
   $("msg2").textContent = "";
 }
